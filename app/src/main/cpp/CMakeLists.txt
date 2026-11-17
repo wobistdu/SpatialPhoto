@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(photo_refine LANGUAGES CXX)
+add_library(photo_refine SHARED photo_refine.cpp)
+target_compile_features(photo_refine PRIVATE cxx_std_17)
+target_compile_options(photo_refine PRIVATE -O3 -Wall -Wextra)

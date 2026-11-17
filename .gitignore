@@ -1,0 +1,10 @@
+.gradle/
+.kotlin/
+**/build/
+**/.cxx/
+local.properties
+.vibelab/
+.DS_Store
+*.jks
+*.keystore
+app/src/main/assets/models/sharp-fp16.onnx.data

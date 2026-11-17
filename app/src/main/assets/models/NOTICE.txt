@@ -1,0 +1,10 @@
+Apple Machine Learning Research Model is licensed under the Apple Machine Learning Research Model License Agreement.
+
+SHARP512 FP16 is an experimental model derivative, not an Apple endorsed or official SHARP-lite release.
+Source: https://github.com/apple/ml-sharp commit aed6527499ef91cba3b54c18d49a870f25947190
+Weights: sharp_2572gikvuh.pt
+Changes: removed unused depth-alignment estimator; resized predictor input to 512; resized patch/image ViT input to 128 with position-embedding interpolation; disabled patch overlap; exported inference to ONNX opset18; converted weights/operators to FP16, retained FP32 input/output.
+Still approximately 700 million parameters. No distillation or retraining was performed. Original1536 rendering-quality equivalence is NOT established. INT8 trial rejected for large geometry divergence.
+Research purposes only. License excludes commercial exploitation, product development, and use in commercial products/services. Merely calling an app an internal demo is not an exemption. Redistribution or commercial product work requires appropriate additional rights; the experimental-camera consent does not grant Apple rights.
+
+SHARP768 FP16 (0.9): predictor input 768, patch/image ViT input 192, interpolated position embeddings, no patch overlap, same original checkpoint and FP16/FP32 IO convention. Shares 1,305,532,800 byte-identical tensor bytes with SHARP512; adds 1,183,744 bytes in sharp-hd.onnx.data. Default inference remains ORT CPU. Model provenance and license above also apply to this derivative.
