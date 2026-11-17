@@ -17,7 +17,7 @@ version:
   name: 0.30-research
   notes: 非商业科研实验首版：Fullspace拍摄、768端侧CPU重建、25万高斯小角度浏览、串行后台排队、2D/3D切换和用户授权导出。当前悬停对比度仍在佩戴验证，不宣称完整体验验收。
 build:
-  repo_url: ''
+  repo_url: https://github.com/wobistdu/SpatialPhoto
   repo_visibility: private
   tech_stack: android_spatial
   ai_tool: Codex
