@@ -1,17 +1,15 @@
 app:
+  id: "7707552383781535798"
   name: SpatialPhoto
   slogan: 将单张照片重建为空间照片的端侧科研实验
-  description: SpatialPhoto 是面向 PICO 设备的非商业科研实验。支持 Fullspace 取景拍照、端侧 CPU 单图 3D Gaussian
-    Splatting 重建、普通窗口内 2D/3D 浏览、后台串行排队与用户授权后的照片和 PLY 导出。默认768输入、目标25万高斯。适合小幅头动观察视差；单张照片无法补全遮挡区域，大角度可能出现空缺，设备重建约一分钟。包含
-    Apple SHARP 模型的研究衍生版本，仅限模型许可允许的非商业科学研究和学术活动，排除商业利用和产品开发。并非 Apple 官方产品或 Apple Vision
-    Pro 功能移植。
+  description: SpatialPhoto 是面向 PICO 设备的非商业科研实验。支持 Fullspace 取景拍照、端侧 CPU 单图 3D Gaussian Splatting 重建、普通窗口内 2D/3D 浏览、后台串行排队与用户授权后的照片和 PLY 导出。默认768输入、目标25万高斯。适合小幅头动观察视差；单张照片无法补全遮挡区域，大角度可能出现空缺，设备重建约一分钟。包含 Apple SHARP 模型的研究衍生版本，仅限模型许可允许的非商业科学研究和学术活动，排除商业利用和产品开发。并非 Apple 官方产品或 Apple Vision Pro 功能移植。
   tags:
-  - 实用工具
+    - 实用工具
   category: application
   icon: release-assets/icon.png
   landscape: release-assets/landscape.png
   detail_images:
-  - release-assets/detail.png
+    - release-assets/detail.png
   videos: []
 version:
   name: 0.30-research
@@ -23,7 +21,7 @@ build:
   ai_tool: Codex
   ai_model: GPT-6.1
   features:
-  - mixed_reality
-  - hand_tracking
-  - controller_support
+    - mixed_reality
+    - hand_tracking
+    - controller_support
   teammates: []
