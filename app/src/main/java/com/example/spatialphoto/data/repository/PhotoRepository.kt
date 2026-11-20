@@ -86,7 +86,9 @@ class VstPhotoRepository(private val context:Context):PhotoRepository,CameraPrev
   save(frame)
  }
  private fun save(frame:CameraFrame):CapturePhoto {
-  val dir=File(context.filesDir,"captures/photo-${System.currentTimeMillis()}")
+  val captures=File(context.filesDir,"captures")
+  check(captures.mkdirs() || captures.isDirectory){"无法创建相册目录"}
+  val dir=File(captures,"photo-${System.currentTimeMillis()}")
   check(dir.mkdir()){"无法创建照片目录"}
   val image=File(dir,"photo.png");val partial=File(dir,"photo.png.partial")
   partial.outputStream().use{check(frame.bitmap.compress(Bitmap.CompressFormat.PNG,100,it))}

@@ -15,8 +15,8 @@ android {
         manifestPlaceholders["migrationBridgeEnabled"] = providers.gradleProperty("legacyMigrationBridge").isPresent.toString()
         minSdk = 35
         targetSdk = 35
-        versionCode = 30
-        versionName = "0.30-spatialphoto"
+        versionCode = 32
+        versionName = "0.32-spatialphoto"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters.add("arm64-v8a") }

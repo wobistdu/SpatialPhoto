@@ -21,6 +21,9 @@
 
         <provider android:name=".data.repository.PhotoMigrationProvider" android:authorities="${applicationId}.photo-migration" android:enabled="${migrationBridgeEnabled}" android:exported="true" android:readPermission="com.example.spatialphoto.permission.MIGRATE_PHOTOS" />
 
+        <meta-data android:name="icon.3d.list" android:resource="@array/icon_3d_list" />
+        <meta-data android:name="icon.sdf.list" android:resource="@array/icon_sdf_list" />
+
         <meta-data
             android:name="pico.spatial.use_experimental_api"
             android:value="1" />
