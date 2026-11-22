@@ -49,6 +49,19 @@ object CaptureDiagnostics {
     val app=context.applicationContext as com.example.spatialphoto.platform.SpatialApplication
     val vm:CaptureViewModel=viewModel(viewModelStoreOwner=app,factory=app.captureViewModelFactory)
     val state by vm.state.collectAsState()
+    val preferences=remember{app.getSharedPreferences("photo-guide",android.content.Context.MODE_PRIVATE)}
+    var firstUse by remember{mutableStateOf(!preferences.getBoolean("seen",false))}
+    var helpVisible by remember{mutableStateOf(firstUse)}
+    fun closeHelp() {
+        preferences.edit().putBoolean("seen",true).apply()
+        firstUse=false
+        helpVisible=false
+    }
+    LaunchedEffect(state.cameraNeedsPermission) {
+        if(state.cameraNeedsPermission)try {
+            context.startActivity(android.content.Intent(context,com.example.spatialphoto.platform.CameraPermissionActivity::class.java).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch(f:Exception){vm.onEvent(CaptureEvent.CameraPermissionResult(false))}
+    }
     LaunchedEffect(state.exportNeedsPermission) {
         if(state.exportNeedsPermission)try {
             context.startActivity(android.content.Intent(context,com.example.spatialphoto.platform.ExportPermissionActivity::class.java).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -97,15 +110,24 @@ object CaptureDiagnostics {
     val pageMaterial=if(state.viewing3D)Modifier else Modifier.clip(RoundedCornerShape(24.dp)).backgroundMaterial()
     Column(Modifier.fillMaxSize().then(pageMaterial).onSizeChanged{windowSize=it;CaptureDiagnostics.windowSize=it}) {
         val selected=state.selected
-        if(selected==null) {
-            CaptureControls(state,vm::onEvent)
+        if(helpVisible) {
+            PhotoHelp(firstUse,onClose={closeHelp()},onCapture={closeHelp();vm.onEvent(CaptureEvent.OpenCamera)})
+        } else if(selected==null) {
+            CaptureControls(state,vm::onEvent,onHelp={helpVisible=true})
             if(state.message.isNotBlank())Text(state.message,modifier=Modifier.padding(horizontal=32.dp),style=PicoTheme.typography.bodyMedium,color=PicoTheme.colorScheme.labelPrimary)
-            if(!state.loading && state.photos.isEmpty())Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment=androidx.compose.ui.Alignment.Center){
+            if(state.cameraPermissionDenied)Button(onClick={
+                try {
+                    context.startActivity(android.content.Intent(android.provider.Settings.ACTION_SETTINGS)
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                } catch(f:Exception){vm.onEvent(CaptureEvent.CameraFailed("请在系统设置中打开应用权限后重试"))}
+            },modifier=Modifier.padding(horizontal=32.dp,vertical=8.dp)){Text("打开系统设置")}
+            if(state.loading)Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment=androidx.compose.ui.Alignment.Center){CircularProgressIndicator()}
+            else if(state.photos.isEmpty())Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment=androidx.compose.ui.Alignment.Center){
                 Column(horizontalAlignment=androidx.compose.ui.Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
                     Icon(PicoIcons.Outlined.Camera3d,null,Modifier.size(48.dp),tint=PicoTheme.colorScheme.labelSecondary)
                     Text("拍下第一张空间照片",style=PicoTheme.typography.titleMedium)
                     Text("记录眼前的场景，稍后换个角度重温",style=PicoTheme.typography.bodyMedium,color=PicoTheme.colorScheme.labelSecondary)
-                    Button(onClick={vm.onEvent(CaptureEvent.OpenCamera)},enabled=!state.savingPhoto){Text("开始拍摄")}
+                    Button(onClick={vm.onEvent(CaptureEvent.OpenCamera)},enabled=!state.savingPhoto && !state.cameraRequested && !state.cameraNeedsPermission && !state.cameraClosing){Text(if(state.cameraRequested)"准备取景…" else "开始拍摄")}
                 }
             } else {
                 val queued=state.photos.filter{it.queued}.sortedBy{it.queuedAt}.map{it.id}
@@ -141,7 +163,7 @@ object CaptureDiagnostics {
                 // A → B → A can be coalesced before Compose draws B. Each request must
                 // still complete its own loading state, even when the final path is unchanged.
                 Spacer(Modifier.weight(1f).fillMaxWidth())
-                if(windowReady && windowSize!=IntSize.Zero) {
+                if(windowReady && windowSize!=IntSize.Zero && !state.previewFailed) {
                     val baseWidth=with(density){windowSize.width.toDp()}
                     val baseHeight=(with(density){windowSize.height.toDp()}-140.dp).coerceAtLeast(1.dp)
                     // Wearer-observed native Gaussian occlusion persists at peripheral angles
@@ -180,7 +202,10 @@ object CaptureDiagnostics {
                             Spacer(Modifier.width(8.dp));Text("返回 2D 照片")
                         }
                         PhotoNavigation(index,state.photos.size,vm::onEvent)
-                        if(state.previewLoading || !windowReady) {
+                        if(state.previewFailed) {
+                            Text(state.previewMessage,modifier=Modifier.widthIn(max=210.dp),style=PicoTheme.typography.bodySmall,color=PicoTheme.colorScheme.labelSecondary)
+                            Button(onClick={vm.onEvent(CaptureEvent.Enter3D)}){Text("重试加载")}
+                        } else if(state.previewLoading || !windowReady) {
                             Icon(painterResource(R.drawable.ic_hourglass),"加载中",Modifier.size(24.dp),tint=PicoTheme.colorScheme.labelPrimary)
                             Text("正在加载 3D 照片…",style=PicoTheme.typography.bodyMedium,color=PicoTheme.colorScheme.labelPrimary)
                             CircularProgressIndicator(modifier=Modifier.size(24.dp))
@@ -189,6 +214,16 @@ object CaptureDiagnostics {
                 }
             } else {
                 SavedPhoto(selected.photo.path,"原始照片",Modifier.weight(1f).fillMaxWidth().padding(horizontal=24.dp).then(swipe))
+                if(selected.error!=null) {
+                    var detailsVisible by remember(selected.id,selected.error){mutableStateOf(false)}
+                    Column(Modifier.fillMaxWidth().padding(horizontal=24.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment=androidx.compose.ui.Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)) {
+                            Text("原图已保存，可以稍后重试",style=PicoTheme.typography.bodyMedium,color=PicoTheme.colorScheme.labelPrimary,modifier=Modifier.weight(1f))
+                            Button(onClick={detailsVisible=!detailsVisible}){Text(if(detailsVisible)"收起原因" else "查看原因")}
+                        }
+                        if(detailsVisible)Text(selected.error,style=PicoTheme.typography.bodySmall,color=PicoTheme.colorScheme.labelSecondary)
+                    }
+                }
                 // Anchor navigation to the page centre, independent of status text width.
                 Box(Modifier.fillMaxWidth().padding(24.dp)) {
                     Column(Modifier.align(androidx.compose.ui.Alignment.CenterStart).widthIn(max=240.dp)) {
@@ -197,7 +232,7 @@ object CaptureDiagnostics {
                         if(selected.progress!=null)Text("可以返回相册继续拍照",style=PicoTheme.typography.bodySmall,color=PicoTheme.colorScheme.labelSecondary)
                     }
                     Box(Modifier.align(androidx.compose.ui.Alignment.Center)) { PhotoNavigation(index,state.photos.size,vm::onEvent) }
-                    if(selected.error!=null)Button(onClick={vm.onEvent(CaptureEvent.Retry(selected.id))},modifier=Modifier.align(androidx.compose.ui.Alignment.CenterEnd)){Text("重新重建")}
+                    if(selected.error!=null)Button(onClick={vm.onEvent(CaptureEvent.Retry(selected.id))},modifier=Modifier.align(androidx.compose.ui.Alignment.CenterEnd)){Text(if(selected.scene!=null)"重试 3D 浏览" else "重新重建")}
                 }
             }
         }

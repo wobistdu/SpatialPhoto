@@ -1,10 +1,40 @@
+# Gradle files
 .gradle/
-.kotlin/
-**/build/
-**/.cxx/
+build/
+
+# Local configuration file (sdk path, etc)
 local.properties
-.vibelab/
+
+# Log/OS Files
+*.log
 .DS_Store
+
+# Android Studio generated files and folders
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+output.json
+
+# IntelliJ
+*.iml
+.idea/
+misc.xml
+deploymentTargetDropDown.xml
+render.experimental.xml
+
+# Keystore files
 *.jks
 *.keystore
-app/src/main/assets/models/sharp-fp16.onnx.data
+
+# Google Services (e.g. APIs or Firebase)
+google-services.json
+
+# Android Profiling
+*.hprof
+.vibelab/
+
+.kotlin/
+.scratch/
+.screenshots/
+*.partial

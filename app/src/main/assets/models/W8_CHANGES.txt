@@ -1,0 +1,11 @@
+Experimental SHARP768 weight-only derivative, 2026-11-21.
+
+The provenance, Apple research model license and notices in LICENSE_MODEL and
+NOTICE.txt continue to apply. Quantization does not expand the granted rights.
+
+Changes relative to the app's SHARP768 FP16 derivative:
+ONNX Runtime MatMulNBits quantization, 8 bits, symmetric blocks of 32,
+MatMul constant weights only, accuracy_level=1. Activations remain floating
+point. No retraining or distillation. Reproduce with tools/quantize_weight_only.py.
+
+The default 0.34-w8 research build packages this derivative.

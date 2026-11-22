@@ -54,7 +54,7 @@ class GalleryPhotoExporter(private val context:Context):PhotoExporter {
             buildList {
                 add(Source(File(photo.photo.path),name,"image/png"))
                 if(photo.ready) {
-                    // Export the refined metric Gaussians, never the compressed window preview.
+                    // Export camera-space Gaussians (Small has relative scale), not the window preview.
                     val refined=PhotoColorRefinement.prepare(File(photo.scene!!.path),photo.photo){ensureActive()}
                     add(Source(refined,name,"application/octet-stream"))
                 }

@@ -21,16 +21,21 @@ object GaussianPlyUseCase {
         val ax=photo.width/(2.0*photo.fx);val ay=photo.height/(2.0*photo.fy)
         val ox=(photo.width/2.0-photo.cx)/photo.fx;val oy=(photo.height/2.0-photo.cy)/photo.fy
         val a=arrayOf(doubleArrayOf(ax,0.0,ox),doubleArrayOf(0.0,ay,oy),doubleArrayOf(0.0,0.0,1.0))
-        var keep=(0 until g.count).filter { i -> g.means[i*3+2]>0.03f && g.means[i*3+2]<100f && g.opacities[i]>.005f && abs(g.means[i*3])<g.means[i*3+2] && abs(g.means[i*3+1])<g.means[i*3+2] }
+        val cameraSpace=g.source==GaussianSource.DEPTH_SMALL_CAMERA
+        fun nx(i:Int):Float = if(cameraSpace)((g.means[i*3]/g.means[i*3+2]-ox)/ax).toFloat() else g.means[i*3]/g.means[i*3+2]
+        fun ny(i:Int):Float = if(cameraSpace)((g.means[i*3+1]/g.means[i*3+2]-oy)/ay).toFloat() else g.means[i*3+1]/g.means[i*3+2]
+        var keep=(0 until g.count).filter { i -> g.means[i*3+2]>0.03f && g.means[i*3+2]<100f && g.opacities[i]>.005f &&
+            (if(cameraSpace)abs(nx(i))<1f && abs(ny(i))<1f else abs(g.means[i*3])<g.means[i*3+2] && abs(g.means[i*3+1])<g.means[i*3+2]) }
         if(keep.size>GaussianBudget.MAX_COUNT) {
             val n=keep.size
-            val selected=GaussianBudget.select(FloatArray(n){.5f+.5f*g.means[keep[it]*3]/g.means[keep[it]*3+2]},
-                FloatArray(n){.5f+.5f*g.means[keep[it]*3+1]/g.means[keep[it]*3+2]},
+            val selected=GaussianBudget.select(FloatArray(n){if(cameraSpace).5f+.5f*nx(keep[it]) else .5f+.5f*g.means[keep[it]*3]/g.means[keep[it]*3+2]},
+                FloatArray(n){if(cameraSpace).5f+.5f*ny(keep[it]) else .5f+.5f*g.means[keep[it]*3+1]/g.means[keep[it]*3+2]},
                 FloatArray(n){g.means[keep[it]*3+2]},FloatArray(n){g.opacities[keep[it]]})
             keep=selected.map{keep[it]}
         }
         require(keep.size>100) { "Too few valid Gaussians" }
-        val header="ply\nformat binary_little_endian 1.0\ncomment SHARP${g.inputResolution}_FP16_research_derivative\nelement vertex ${keep.size}\n"+
+        val provenance=if(cameraSpace)"DepthAnythingV2_Small_relative_depth" else "SHARP${g.inputResolution}_FP16_research_derivative"
+        val header="ply\nformat binary_little_endian 1.0\ncomment $provenance\nelement vertex ${keep.size}\n"+
             listOf("x","y","z","f_dc_0","f_dc_1","f_dc_2","opacity","scale_0","scale_1","scale_2","rot_0","rot_1","rot_2","rot_3").joinToString("") { "property float $it\n" }+"end_header\n"
         val partial=File(file.parentFile,"${file.name}.partial")
         BufferedOutputStream(partial.outputStream(),256*1024).use { out ->
@@ -39,10 +44,13 @@ object GaussianPlyUseCase {
             val workspace = CovarianceWorkspace()
             for(i in keep) {
                 val m=i*3;val z=g.means[m+2]
-                workspace.transform(g.rotations, i*4, g.scales, m, a)
+                if(cameraSpace) {
+                    for(c in 0..2)workspace.scales[c]=g.scales[m+c].toDouble()
+                    for(c in 0..3)workspace.quat[c]=g.rotations[i*4+c].toDouble()
+                } else workspace.transform(g.rotations, i*4, g.scales, m, a)
                 val s=workspace.scales; val rot=workspace.quat
                 row.clear()
-                row.putFloat((ax*g.means[m]+ox*z).toFloat());row.putFloat((ay*g.means[m+1]+oy*z).toFloat());row.putFloat(z)
+                row.putFloat(if(cameraSpace)g.means[m] else (ax*g.means[m]+ox*z).toFloat());row.putFloat(if(cameraSpace)g.means[m+1] else (ay*g.means[m+1]+oy*z).toFloat());row.putFloat(z)
                 for(c in 0..2) { val l=g.colors[m+c].coerceIn(0f,1f).toDouble();val sr=if(l<=.0031308)12.92*l else 1.055*l.pow(1/2.4)-.055;row.putFloat(((sr-.5)/.28209479177387814).toFloat()) }
                 val op=g.opacities[i].coerceIn(1e-6f,1f-1e-6f);row.putFloat(ln(op/(1-op)))
                 s.forEach { row.putFloat(ln(it.coerceAtLeast(1e-8)).toFloat()) }

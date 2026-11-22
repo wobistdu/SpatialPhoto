@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.os.SystemClock
 import android.util.Log
 import com.example.spatialphoto.domain.model.CapturePhoto
+import com.example.spatialphoto.domain.usecase.AdaptivePhotoSampling
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -27,13 +28,16 @@ object PhotoColorRefinement {
         require(source.length() in 1..(300000L*56+4096))
         val budgeted=com.example.spatialphoto.domain.usecase.GaussianBudget.prepare(source,photo,checkCancelled)
         val bytes=budgeted.readBytes()
+        val relativeDepth=String(bytes,0,minOf(256,bytes.size),Charsets.US_ASCII)
+            .lineSequence().any{it=="comment DepthAnythingV2_Small_relative_depth"}
+        val version=if(relativeDepth)"color-v2-lanczos" else "color-v1"
         val photoFile=File(photo.path)
         val digest=MessageDigest.getInstance("SHA-256")
         digest.update(bytes)
         photoFile.inputStream().use { stream-> val buffer=ByteArray(65536);while(true){checkCancelled();val n=stream.read(buffer);if(n<0)break;digest.update(buffer,0,n)} }
-        digest.update("color-v1:960:12:.12:.02:${photo.width}:${photo.height}:${photo.fx}:${photo.fy}:${photo.cx}:${photo.cy}".toByteArray())
+        digest.update("$version:960:12:.12:.02:${photo.width}:${photo.height}:${photo.fx}:${photo.fy}:${photo.cx}:${photo.cy}".toByteArray())
         val key=digest.digest().take(12).joinToString(""){"%02x".format(it.toInt() and 255)}
-        val output=File(source.parentFile,"color-v1-$key.ply")
+        val output=File(source.parentFile,"$version-$key.ply")
         if(output.isFile && output.length()==bytes.size.toLong())return output
         // A prepared photo must not wait behind another photo's native color fitting.
         return synchronized(preparationLock) {
@@ -54,12 +58,28 @@ object PhotoColorRefinement {
         val rows=FloatArray(count*14);data.asFloatBuffer().get(rows)
         require(photo.width>0 && photo.height>0)
         val ratio=minOf(1f,960f/maxOf(photo.width,photo.height))
-        val width=(photo.width*ratio).toInt().coerceAtLeast(1);val height=(photo.height*ratio).toInt().coerceAtLeast(1)
-        val options=BitmapFactory.Options().apply { inPreferredConfig=Bitmap.Config.ARGB_8888;inSampleSize=if(ratio<=.5f)2 else 1 }
+        val width=if(relativeDepth)AdaptivePhotoSampling.WIDTH else (photo.width*ratio).toInt().coerceAtLeast(1)
+        val height=if(relativeDepth)AdaptivePhotoSampling.HEIGHT else (photo.height*ratio).toInt().coerceAtLeast(1)
+        val options=BitmapFactory.Options().apply { inPreferredConfig=Bitmap.Config.ARGB_8888;inSampleSize=if(!relativeDepth && ratio<=.5f)2 else 1 }
         val decoded=requireNotNull(BitmapFactory.decodeFile(photo.path,options)){"原始照片读取失败"}
-        val resized=try {Bitmap.createScaledBitmap(decoded,width,height,true)}catch(t:Throwable){decoded.recycle();throw t}
         val pixels=IntArray(width*height)
-        try {resized.getPixels(pixels,0,width,0,0,width,height)}finally {resized.recycle();if(decoded!==resized)decoded.recycle()}
+        if(relativeDepth) {
+            try {
+                require(width==AdaptivePhotoSampling.WIDTH && height==AdaptivePhotoSampling.HEIGHT)
+                val original=IntArray(decoded.width*decoded.height)
+                decoded.getPixels(original,0,decoded.width,0,0,decoded.width,decoded.height)
+                val rgb=AdaptivePhotoSampling.resize(original,decoded.width,decoded.height,checkCancelled)
+                for(i in pixels.indices) {
+                    val r=(rgb[i*3]*255+.5f).toInt().coerceIn(0,255)
+                    val g=(rgb[i*3+1]*255+.5f).toInt().coerceIn(0,255)
+                    val b=(rgb[i*3+2]*255+.5f).toInt().coerceIn(0,255)
+                    pixels[i]=(255 shl 24) or (r shl 16) or (g shl 8) or b
+                }
+            } finally {decoded.recycle()}
+        } else {
+            val resized=try {Bitmap.createScaledBitmap(decoded,width,height,true)}catch(t:Throwable){decoded.recycle();throw t}
+            try {resized.getPixels(pixels,0,width,0,0,width,height)}finally {resized.recycle();if(decoded!==resized)decoded.recycle()}
+        }
         checkCancelled()
         val scaleX=width.toFloat()/photo.width;val scaleY=height.toFloat()/photo.height
         val colors=fit(rows,pixels,width,height,floatArrayOf(photo.fx*scaleX,photo.fy*scaleY,photo.cx*scaleX,photo.cy*scaleY))

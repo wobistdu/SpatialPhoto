@@ -1,6 +1,6 @@
 app:
   id: "7707552383781535798"
-  name: SpatialPhoto
+  name: 浮光 · 空间照片
   slogan: 轻轻侧头，照片有了纵深。
   description: 窗边的一枝花，桌沿的一束光。戴上 PICO，在取景框里按下快门，SpatialPhoto 会在头显上把这张照片重建成空间照片。打开相册，轻轻侧头，看花瓣与身后的窗景错开一点。重建约需一分钟，等待时可以继续拍摄，照片会按顺序处理。支持在普通窗口切换 2D 与 3D，也可导出照片和 PLY。单张照片适合小角度观看。本应用与随附模型仅供许可允许的非商业科学研究和学术活动，排除商业利用和产品开发。
   tags:
@@ -12,8 +12,8 @@ app:
     - release-assets/detail.jpg
   videos: []
 version:
-  name: 0.32-research
-  notes: 更新三层空间桌面图标和作品展示图；修复首次拍照时相册目录尚未建立导致的保存失败。保留 768 输入、25 万高斯的端侧单图重建与小角度浏览。
+  name: 0.34-w8-research
+  notes: 本版采用已在头显对比的 W8 权重，保留 768 输入、最多 25 万个高斯及端侧串行重建。更新首次使用说明、删除确认与失败重试。仅供非商业科研用途。
 build:
   repo_url: https://github.com/wobistdu/SpatialPhoto
   repo_visibility: public

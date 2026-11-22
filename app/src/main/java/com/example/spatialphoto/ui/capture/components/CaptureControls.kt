@@ -16,6 +16,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.example.spatialphoto.R
 import com.pico.spatial.ui.design.*
 import com.pico.spatial.ui.design.icons.PicoIcons
 import com.pico.spatial.ui.design.icons.outlined.Camera3d
@@ -24,6 +26,7 @@ import com.pico.spatial.ui.design.icons.outlined.Ellipsis
 import com.pico.spatial.ui.design.icons.outlined.Download
 import com.pico.spatial.ui.design.menu.Menu
 import com.pico.spatial.ui.design.menu.MenuItem
+import com.pico.spatial.ui.design.windows.AlertDialog
 import com.example.spatialphoto.domain.model.PhotoItem
 import com.example.spatialphoto.ui.capture.*
 import kotlinx.coroutines.Dispatchers
@@ -37,11 +40,12 @@ internal fun photoDate(item:PhotoItem):String {
     val stamp=item.id.substringBeforeLast('/').substringAfterLast('-').toLongOrNull() ?: return "空间照片"
     return SimpleDateFormat("M月d日 · HH:mm",Locale.CHINA).format(Date(stamp))
 }
-@Composable fun CaptureControls(state:CaptureUiState,onEvent:(CaptureEvent)->Unit) {
+@Composable fun CaptureControls(state:CaptureUiState,onEvent:(CaptureEvent)->Unit,onHelp:()->Unit={}) {
     val exportEnabled=!state.exporting && !state.exportNeedsPermission && !state.loading && state.photos.isNotEmpty() && state.deletingIds.isEmpty()
-    val captureEnabled=!state.cameraRequested && !state.cameraClosing && !state.savingPhoto && !state.loading && state.deletingIds.isEmpty()
+    val captureEnabled=!state.cameraRequested && !state.cameraClosing && !state.cameraNeedsPermission && !state.savingPhoto && !state.loading && state.deletingIds.isEmpty()
     TitleBar(modifier=Modifier.fillMaxWidth(),titleAlignment=TitleAlignment.Center,
-        title={Text("SpatialPhoto")},
+        title={Text(if(com.example.spatialphoto.BuildConfig.DEPTH_SMALL_MODEL)"浮光 · 轻量实验" else stringResource(R.string.app_name))},
+        leadingActions={Button(onClick=onHelp){Text("帮助")}},
         trailingActions={Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
             ContrastHover(enabled=exportEnabled) { hoverTarget ->
             Button(onClick={onEvent(CaptureEvent.ExportAll)},modifier=hoverTarget,enabled=exportEnabled) {
@@ -52,7 +56,7 @@ internal fun photoDate(item:PhotoItem):String {
             ContrastHover(enabled=captureEnabled) { hoverTarget ->
             Button(onClick={onEvent(CaptureEvent.OpenCamera)},modifier=hoverTarget,enabled=captureEnabled){
             Icon(PicoIcons.Outlined.Camera3d,contentDescription=null,modifier=Modifier.size(24.dp))
-            Spacer(Modifier.width(8.dp));Text("拍照")
+            Spacer(Modifier.width(8.dp));Text(if(state.cameraRequested)"准备取景…" else "拍照")
         }}}})
     if(state.exportMessage.isNotBlank())Text(state.exportMessage,modifier=Modifier.padding(horizontal=32.dp,vertical=8.dp),style=PicoTheme.typography.bodySmall,color=PicoTheme.colorScheme.labelSecondary)
     Row(Modifier.fillMaxWidth().padding(start=32.dp,end=32.dp,bottom=20.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -65,21 +69,33 @@ internal fun photoDate(item:PhotoItem):String {
     }
 }
 @Composable internal fun SavedPhoto(path:String,description:String,modifier:Modifier=Modifier,thumbnail:Boolean=false) {
-    val bitmap by produceState<ImageBitmap?>(null,path,thumbnail) {
-        value=withContext(Dispatchers.IO) {
-            BitmapFactory.decodeFile(path,BitmapFactory.Options().apply{inSampleSize=if(thumbnail)2 else 1})?.asImageBitmap()
+    var retry by remember(path){mutableIntStateOf(0)}
+    val result by produceState<Pair<Boolean,ImageBitmap?>>(false to null,path,thumbnail,retry) {
+        value=false to null
+        val decoded=withContext(Dispatchers.IO) {
+            runCatching{BitmapFactory.decodeFile(path,BitmapFactory.Options().apply{inSampleSize=if(thumbnail)2 else 1})?.asImageBitmap()}.getOrNull()
         }
+        value=true to decoded
     }
     Box(modifier,contentAlignment=Alignment.Center) {
-        bitmap?.let{Image(it,description,Modifier.fillMaxSize(),contentScale=ContentScale.Fit)}
-            ?: CircularProgressIndicator()
+        val bitmap=result.second
+        if(bitmap!=null)Image(bitmap,description,Modifier.fillMaxSize(),contentScale=ContentScale.Fit)
+        else if(!result.first)CircularProgressIndicator()
+        else Column(horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            Text("原图无法读取",style=PicoTheme.typography.bodyMedium,color=PicoTheme.colorScheme.labelSecondary)
+            if(!thumbnail)Button(onClick={retry++}){Text("重新读取")}
+        }
     }
 }
 @Composable internal fun PhotoStatus(item:PhotoItem,queuePosition:Int=0) {
     val status=when {
         item.queued->"等待重建 · 第 ${queuePosition.coerceAtLeast(1)} 张"
         item.previewQueued->"等待准备 3D 浏览"
+        item.progress?.contains("首次准备")==true->"首次准备本机模型 · 请稍候"
+        item.progress?.contains("加载重建模型")==true->"正在加载模型 · 请稍候"
         item.progress?.contains("准备 3D")==true->"正在准备 3D 浏览 · 预计 ${item.percent ?: 98}%"
+        item.progress?.contains("Gaussian")==true->"正在整理空间细节 · 预计 ${item.percent ?: 97}%"
+        item.progress?.contains("保存空间")==true->"正在保存空间照片 · 预计 99%"
         item.progress!=null->"正在重建 · 预计 ${item.percent ?: 1}%"
         item.error!=null->"重建未完成 · 可重试"
         item.ready && item.builtInSample->"AI 生成 · 内置空间照片"
@@ -91,11 +107,23 @@ internal fun photoDate(item:PhotoItem):String {
         if(item.processing)CircularProgressIndicator(modifier=Modifier.size(16.dp))
         Text(status,style=PicoTheme.typography.bodySmall,color=PicoTheme.colorScheme.labelSecondary)
     }
-    if(item.processing)LinearProgressIndicator(progress={ (item.percent ?: 1)/100f },modifier=Modifier.fillMaxWidth())
+    if(item.processing && item.progress?.contains("模型")!=true)LinearProgressIndicator(progress={ (item.percent ?: 1)/100f },modifier=Modifier.fillMaxWidth())
     }
 }
 @Composable internal fun PhotoTile(item:PhotoItem,onClick:()->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,queuePosition:Int=0,onDelete:()->Unit={},deleteEnabled:Boolean=true) {
     var menuOpen by remember(item.id){mutableStateOf(false)}
+    var confirmDelete by remember(item.id){mutableStateOf(false)}
+    if(confirmDelete)AlertDialog(
+        onDismissRequest={confirmDelete=false},
+        title={Text("删除这张照片？")},
+        content={Text("${photoDate(item)} 的原图和应用内 3D 照片会一并删除，无法恢复。已导出的文件会保留。")},
+        buttons={
+            Row(horizontalArrangement=Arrangement.spacedBy(16.dp)) {
+                Button(onClick={confirmDelete=false}){Text("保留照片")}
+                Button(onClick={confirmDelete=false;onDelete()},enabled=enabled && deleteEnabled,
+                    colors=ButtonDefaults.buttonColors(containerColor=PicoTheme.colorScheme.error,contentColor=PicoTheme.colorScheme.labelPrimaryLight)){Text("确认删除")}
+            }
+        })
     // Thumbnail and menu are siblings, never nested click targets. In particular,
     // hovering the photograph must not scale/move the ellipsis under the pointer.
     Column(modifier) {
@@ -116,7 +144,7 @@ internal fun photoDate(item:PhotoItem):String {
                 if(menuOpen)Menu(onDismissRequest={menuOpen=false}) {
                     MenuItem(title={Text(if(deleteEnabled)"删除照片" else "导出中，暂不可删除")},
                         leadingIcon={Icon(PicoIcons.Outlined.Delete,null,Modifier.size(24.dp))},
-                        onClick={menuOpen=false;if(deleteEnabled)onDelete()})
+                        onClick={menuOpen=false;if(deleteEnabled)confirmDelete=true})
                 }
             }
         }

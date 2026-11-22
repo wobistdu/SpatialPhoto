@@ -1,11 +1,19 @@
-# SpatialPhoto — 非商业科研实验
+# 浮光 · 空间照片
 
-PICO Spatial SDK 单张照片3D Gaussian Splatting实验。Fullspace拍照，普通窗口查看2D与小角度3D视差，串行后台重建、系统目录导出。默认768模型，目标250000高斯；使用ONNX Runtime CPU推理。
+PICO 头显上的单图空间重建研究应用。在 Fullspace 取景拍照，在普通窗口查看原图或小角度移动头部观察空间照片。后台逐张重建，可继续拍摄、浏览及导出原图与 PLY。
 
-此版本仅供非商业科研实验与学术研究。包含Apple SHARP模型的研究衍生版本，许可、归属和变更见app/src/main/assets/models/LICENSE_MODEL与NOTICE.txt。禁止将此实验包用于许可排除的商业利用或产品开发。并非Apple官方产品或Apple Vision Pro功能移植。
+## 构建
 
-单张图无法补全遮挡区域，侧面/大角度可能缺失，当前版本通过角度限制和有界深度显示供小角度研究。高斯数目与清晰度不等同。重建约一分钟，结果随照片与设备状态变化。照片保存在设备本地，导出由用户选择系统目录授权。
+需要 JDK 17 或以上、Android SDK 35、NDK 27.2.12479018、CMake 3.22.1。配置 ANDROID_HOME 或在 local.properties 中指定 sdk.dir。从工程根运行：
 
-构建：JDK21、Android SDK35/NDK27.2.12479018，./gradlew assembleDebug。model-weights中的分片只为Git传输；Gradle配置阶段校验各分片并还原原始权重，最终SHA256与端侧已验证模型一致，不需要Git LFS或联网下载。
+```sh
+./gradlew :app:testDebugUnitTest :app:assembleDebug
+```
 
-工程不包含开发期设备照片、个人日志、历史交接记录或实验缓存。0.30悬停增强尚待完整佩戴确认，公开展示不得宣称已经完成全部体验验收。
+默认构建 VibeLab 应用 com.example.spatialphoto，版本 0.34-w8（34）。同一套源码可用 -PlocalW8=true 构建 com.example.spatialphoto.w8，对应已验收的本地相册。两个包使用独立的私有存储。
+
+## 模型与资产
+
+768 像素输入，最多 250,000 个高斯。CPU 运行 ONNX Runtime。model-weights 下按序存放 W8 权重分片，Gradle 在生成 APK 前还原并验证模型图与完整权重的 SHA-256。图、权重许可及变更说明在 app/src/main/assets/models。商店封面、详情图和图标在 release-assets。
+
+Apple Machine Learning Research Model is licensed under the Apple Machine Learning Research Model License Agreement. 随附衍生模型仅供许可约定的非商业科学研究和学术活动，许可排除商业利用和产品开发。详见 [模型许可](app/src/main/assets/models/LICENSE_MODEL) 与 [W8 变更记录](app/src/main/assets/models/W8_CHANGES.txt)。

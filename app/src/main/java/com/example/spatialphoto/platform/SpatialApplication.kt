@@ -12,7 +12,9 @@ class SpatialApplication : Application(), ViewModelStoreOwner {
     override val viewModelStore = ViewModelStore()
     val captureViewModelFactory by lazy { CaptureViewModelFactory(this) }
 
-    private val sharpDelegate = lazy { com.example.spatialphoto.data.repository.OnnxSharpRepository(this) }
+    private val sharpDelegate = lazy<com.example.spatialphoto.data.repository.SharpRepository> {
+        com.example.spatialphoto.data.repository.OnnxSharpRepository(this)
+    }
     val sharpRepository get() = sharpDelegate.value
 
     override fun onTrimMemory(level: Int) {

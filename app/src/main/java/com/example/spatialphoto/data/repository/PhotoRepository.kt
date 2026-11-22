@@ -37,10 +37,14 @@ class VstPhotoRepository(private val context:Context):PhotoRepository,CameraPrev
   val image:GlobalTensor,val intrinsics:GlobalTensor,val timestamp:GlobalTensor,
   val bindings:Map<PipelineTensorPlaceholder,GlobalTensor>)
  private var source:Source?=null
+ private var firstFrameReported=false
  private suspend fun getSource():Source {
   source?.let{return it}
+  val began=android.os.SystemClock.elapsedRealtime()
+  android.util.Log.i("SpatialPhoto","CAMERA_PREPARE phase=create")
   val owner=SpatialMLInstance.create(context)
   withTimeout(10000){while(!owner.ready)delay(100)}
+  android.util.Log.i("SpatialPhoto","CAMERA_PREPARE phase=ready ms=${android.os.SystemClock.elapsedRealtime()-began}")
   val session=owner.createSession(SpatialMLSession.InitInfo(imageWidth=1920,imageHeight=1440,containerWidth=0,containerHeight=0,containerDepth=0,containerType=SpatialMLSession.ContainerType.DISABLED)) ?: error("相机会话不可用")
   val rgba=session.newGlobalTensor(Tensor.MultiDimensionalInitInfo(Tensor.DataType.Image.R8G8B8A8_U,intArrayOf(1440,1920)))
   val k=session.newGlobalTensor(Tensor.MultiDimensionalInitInfo(Tensor.DataType.FLOAT32,intArrayOf(3,3)))
@@ -48,22 +52,30 @@ class VstPhotoRepository(private val context:Context):PhotoRepository,CameraPrev
   val pipeline=session.newPipeline()
   val im=pipeline.newPlaceholderLike(rgba);val ki=pipeline.newPlaceholderLike(k);val ti=pipeline.newPlaceholderLike(time)
   pipeline.rectifiedVSTAccess(im,null,ti,ki)
-  return Source(owner,session,pipeline,rgba,k,time,mapOf(im to rgba,ki to k,ti to time)).also{source=it}
+  return Source(owner,session,pipeline,rgba,k,time,mapOf(im to rgba,ki to k,ti to time)).also{
+   source=it
+   android.util.Log.i("SpatialPhoto","CAMERA_PREPARE phase=pipeline ms=${android.os.SystemClock.elapsedRealtime()-began}")
+  }
  }
  override suspend fun nextFrame():CameraFrame=withContext(Dispatchers.IO) {
   captureMutex.lock()
+  val began=android.os.SystemClock.elapsedRealtime()
+  var phase="permission";var blackFrames=0
   try {
   for(permission in listOf("android.permission.CAMERA","com.picovr.permission.SPATIAL_DATA"))
    check(context.checkSelfPermission(permission)==PackageManager.PERMISSION_GRANTED){"请授予相机和空间数据权限后重试"}
+  phase="session"
   val src=getSource()
   withTimeout(15000){
    while(true) {
     src.pipeline.submit(src.bindings,null,null)
+    phase="pixels"
     val pixels=src.image.readbackContentSuspend().use{ snapshot->
      val b=snapshot.buffer.duplicate().apply{rewind()};check(b.remaining()==1920*1440*4){"RGBA布局无效"}
      IntArray(1920*1440){0xff000000.toInt() or ((b.get().toInt() and 255) shl 16) or ((b.get().toInt() and 255) shl 8) or (b.get().toInt() and 255).also{b.get()}}
     }
-    if(pixels.count{it and 0xffffff != 0}<1000){delay(250);continue}
+    if(pixels.count{it and 0xffffff != 0}<1000){blackFrames++;delay(250);continue}
+    phase="calibration"
     val matrix=src.intrinsics.readbackContentSuspend().use{ snapshot->val b=snapshot.buffer.duplicate().order(ByteOrder.nativeOrder()).apply{rewind()};check(b.remaining()==36);FloatArray(9){b.float}}
     val timestamp=src.timestamp.readbackContentSuspend().use{ snapshot->val b=snapshot.buffer.duplicate().order(ByteOrder.nativeOrder()).apply{rewind()};check(b.remaining()==16);IntArray(4){b.int}}
     require(matrix.all{it.isFinite()} && matrix[0]>0 && matrix[4]>0 && kotlin.math.abs(matrix[8]-1f)<.01f){"内参无效"}
@@ -75,10 +87,17 @@ class VstPhotoRepository(private val context:Context):PhotoRepository,CameraPrev
     val crop=com.example.spatialphoto.domain.usecase.PhotoFraming.crop(1920,1440,matrix[0],cx,cy)
     val cropped=Bitmap.createBitmap(pixels,crop.top*1920+crop.left,1920,crop.width,crop.height,Bitmap.Config.ARGB_8888)
     val calibrated=matrix.copyOf().apply {this[if(row)2 else 6]=crop.cx;this[if(row)5 else 7]=crop.cy}
+    if(!firstFrameReported) {
+     firstFrameReported=true
+     android.util.Log.i("SpatialPhoto","CAMERA_FIRST_FRAME ms=${android.os.SystemClock.elapsedRealtime()-began} blackFrames=$blackFrames")
+    }
     return@withTimeout CameraFrame(cropped,calibrated,timestamp,crop.cx,crop.cy,android.os.SystemClock.elapsedRealtime())
    }
    error("No camera image")
   }
+  } catch(cancelled:CancellationException) {
+   if(!firstFrameReported)android.util.Log.w("SpatialPhoto","CAMERA_FIRST_FRAME_CANCELLED phase=$phase ms=${android.os.SystemClock.elapsedRealtime()-began} blackFrames=$blackFrames")
+   throw cancelled
   } finally {captureMutex.unlock()}
  }
  override suspend fun capture():CapturePhoto=withContext(Dispatchers.IO) {
@@ -88,6 +107,7 @@ class VstPhotoRepository(private val context:Context):PhotoRepository,CameraPrev
  private fun save(frame:CameraFrame):CapturePhoto {
   val captures=File(context.filesDir,"captures")
   check(captures.mkdirs() || captures.isDirectory){"无法创建相册目录"}
+  requireStorageSpace(captures)
   val dir=File(captures,"photo-${System.currentTimeMillis()}")
   check(dir.mkdir()){"无法创建照片目录"}
   val image=File(dir,"photo.png");val partial=File(dir,"photo.png.partial")

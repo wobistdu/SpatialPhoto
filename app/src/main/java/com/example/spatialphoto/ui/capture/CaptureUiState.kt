@@ -7,6 +7,8 @@ data class CaptureUiState(
     val cameraSession:Long=0,
     val cameraStageAttached:Boolean=false,
     val cameraClosing:Boolean=false,
+    val cameraNeedsPermission:Boolean=false,
+    val cameraPermissionDenied:Boolean=false,
     val cameraFrame:com.example.spatialphoto.data.repository.CameraFrame?=null,
     val cameraMessage:String="正在启动相机…",
     val photos:List<PhotoItem> = emptyList(),
@@ -16,6 +18,7 @@ data class CaptureUiState(
     val activeId:String?=null,
     val viewing3D:Boolean=false,
     val previewLoading:Boolean=false,
+    val previewFailed:Boolean=false,
     val deletingIds:Set<String> = emptySet(),
     val exporting:Boolean=false,
     val exportNeedsPermission:Boolean=false,
@@ -32,6 +35,7 @@ data class CaptureUiState(
 }
 sealed interface CaptureEvent {
     data object OpenCamera:CaptureEvent
+    data class CameraPermissionResult(val granted:Boolean):CaptureEvent
     data object CameraReady:CaptureEvent
     data class CameraDisposed(val session:Long):CaptureEvent
     data object CloseCamera:CaptureEvent

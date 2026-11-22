@@ -20,6 +20,7 @@ class CaptureViewModelFactory(private val context: Context) : ViewModelProvider.
         val library = MigratingPhotoLibraryRepository(app, stored)
         val generate = GenerateSceneUseCase(camera, app.sharpRepository, library)
         @Suppress("UNCHECKED_CAST")
-        return CaptureViewModel(generate, camera, exporter = GalleryPhotoExporter(app)) as T
+        return CaptureViewModel(generate, camera, exporter = GalleryPhotoExporter(app),
+            canUseCamera={com.example.spatialphoto.platform.CameraPermissionActivity.isGranted(app)}) as T
     }
 }

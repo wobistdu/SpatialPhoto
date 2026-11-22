@@ -1,6 +1,7 @@
 package com.example.spatialphoto.data.repository
 
 import android.content.Context
+import com.example.spatialphoto.BuildConfig
 import android.graphics.BitmapFactory
 import android.util.Log
 import ai.onnxruntime.*
@@ -17,12 +18,19 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.coroutines.coroutineContext
 
-interface SharpRepository { suspend fun predict(photo: CapturePhoto, progress: (String) -> Unit): GaussianOutput }
+interface SharpRepository {
+    suspend fun predict(photo: CapturePhoto, progress: (String) -> Unit): GaussianOutput
+    suspend fun release() {}
+    fun requestRelease() {}
+}
 
 /** One CPU session per repository; all use/release operations share the same mutex. */
 class OnnxSharpRepository(private val context: Context, private val idleTimeoutMillis: Long = 120_000, private val resolution:Int = ReconstructionQuality.INPUT_RESOLUTION, private val intraOpThreads:Int = 4) : SharpRepository {
-    init { require(resolution in listOf(512,768));require(intraOpThreads in 1..8) }
-    private val modelName=if(resolution==768)"sharp-hd.onnx" else "sharp-fp16.onnx"
+    init {
+        require(resolution in listOf(512,768));require(intraOpThreads in 1..8)
+        require(!BuildConfig.WEIGHT_ONLY_MODEL || resolution==768) { "W8 candidate supports 768 only" }
+    }
+    private val modelName=if(BuildConfig.WEIGHT_ONLY_MODEL)"sharp-w8.onnx" else if(resolution==768)"sharp-hd.onnx" else "sharp-fp16.onnx"
     private val mutex = Mutex()
     private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var idleRelease: Job? = null
@@ -38,12 +46,13 @@ class OnnxSharpRepository(private val context: Context, private val idleTimeoutM
     }
 
     /** Safe during inference: release waits for its native results and tensors to close. */
-    suspend fun release() = mutex.withLock {
+    override suspend fun release() = mutex.withLock {
         idleRelease?.cancel(); idleRelease = null
         val old = loaded; loaded = null
         old?.close()
+        Unit
     }
-    fun requestRelease() { cleanupScope.launch { release() } }
+    override fun requestRelease() { cleanupScope.launch { release() } }
 
     override suspend fun predict(photo: CapturePhoto, progress: (String) -> Unit): GaussianOutput = mutex.withLock {
         idleRelease?.cancel(); idleRelease = null
@@ -53,26 +62,44 @@ class OnnxSharpRepository(private val context: Context, private val idleTimeoutM
             val env = OrtEnvironment.getEnvironment()
             val reused = loaded != null
             val root = File(context.filesDir, "models").apply { mkdirs() }
-            val assets=if(resolution==512)listOf(modelName,"sharp-fp16.onnx.data") else listOf(modelName,"$modelName.data","sharp-fp16.onnx.data")
-            if (!reused) for (name in assets) {
-                val target = File(root, name)
-                val expected = when(name) {
+            val assets=if(BuildConfig.WEIGHT_ONLY_MODEL)listOf(modelName,"$modelName.data") else if(resolution==512)listOf(modelName,"sharp-fp16.onnx.data") else listOf(modelName,"$modelName.data","sharp-fp16.onnx.data")
+            val expectedSizes=assets.associateWith { name ->
+                when(name) {
+                    "sharp-w8.onnx" -> BuildConfig.WEIGHT_ONLY_GRAPH_BYTES
+                    "sharp-w8.onnx.data" -> BuildConfig.WEIGHT_ONLY_DATA_BYTES
                     "sharp-fp16.onnx" -> 7377195L
                     "sharp-hd.onnx.data" -> 1183744L
                     "sharp-hd.onnx" -> 7380493L
                     "sharp-fp16.onnx.data" -> 1306323328L
                     else -> error("Unknown model asset")
                 }
-                if (!target.isFile || target.length() != expected) {
+            }
+            val missing=if(reused)emptyMap() else expectedSizes.filter{(name,size)->File(root,name).length()!=size}
+            // Discard only unfinished copies, never the current model or photos.
+            missing.keys.forEach{File(root,"$it.partial").delete()}
+            requireStorageSpace(root,missing.values.sum())
+            for ((name,expected) in missing) {
+                val target=File(root,name)
                     progress("首次准备端上模型…")
                     val partial = File(root, "$name.partial")
-                    context.assets.open("models/$name").use { input ->
-                        partial.outputStream().use { output -> input.copyTo(output, 1024*1024) }
+                    try {
+                        context.assets.open("models/$name").use { input ->
+                            partial.outputStream().use { output ->
+                                val buffer=ByteArray(1024*1024)
+                                while(true) {
+                                    coroutineContext.ensureActive()
+                                    val size=input.read(buffer)
+                                    if(size<0)break
+                                    output.write(buffer,0,size)
+                                }
+                            }
+                        }
+                        check(partial.length() == expected) { "模型大小校验失败，请重试" }
+                        coroutineContext.ensureActive()
+                        check(partial.renameTo(target)) { "模型保存失败，请检查存储空间" }
+                    } finally {
+                        partial.delete()
                     }
-                    check(partial.length() == expected) { "模型大小校验失败" }
-                    coroutineContext.ensureActive()
-                    check(partial.renameTo(target)) { "模型保存失败" }
-                }
             }
             coroutineContext.ensureActive()
             val prepared = SystemClock.elapsedRealtime()

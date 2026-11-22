@@ -50,7 +50,7 @@ class GenerateSceneUseCase(
             val encoded=withContext(Dispatchers.Default) {
                 progress("校验并编码 Gaussian…")
                 val file=File(File(photo.path).parentFile,"scene.ply")
-                GeneratedScene(file.absolutePath,GaussianPlyUseCase.write(result,photo,file),clock()-began,result.inputResolution)
+                GeneratedScene(file.absolutePath,GaussianPlyUseCase.write(result,photo,file),clock()-began,result.inputResolution,result.source)
             }
             // Ready means the actual first-open assets are already on disk, not only the model output.
             progress("正在准备 3D 浏览…")

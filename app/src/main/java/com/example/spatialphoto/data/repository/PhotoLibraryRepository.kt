@@ -1,6 +1,7 @@
 package com.example.spatialphoto.data.repository
 
 import com.example.spatialphoto.domain.model.*
+import com.example.spatialphoto.BuildConfig
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -44,7 +45,8 @@ class FilePhotoLibraryRepository(private val captures: File): PhotoLibraryReposi
                         }
                         require(header.startsWith("ply\nformat binary_little_endian 1.0\n") && header.contains("element vertex $count\n"))
                         require(ply.length()==header.toByteArray(Charsets.US_ASCII).size+count*56L)
-                        GeneratedScene(ply.absolutePath,count,s.getLong("elapsedMs"),s.optInt("resolution",512))
+                        GeneratedScene(ply.absolutePath,count,s.getLong("elapsedMs"),s.optInt("resolution",512),
+                            if(s.optString("source")=="DEPTH_SMALL_CAMERA")GaussianSource.DEPTH_SMALL_CAMERA else GaussianSource.SHARP_NDC)
                     } else null
                     val queued=scene==null && File(dir,"queued").isFile
                     PhotoItem(photo,scene,
@@ -72,7 +74,10 @@ class FilePhotoLibraryRepository(private val captures: File): PhotoLibraryReposi
         val target=File(dir,"scene.json");val partial=File(dir,"scene.json.partial")
         partial.writeText(JSONObject().put("path",scene.path).put("count",scene.count)
             .put("elapsedMs",scene.generationMs).put("freshCapture",true)
-            .put("resolution",scene.resolution).put("backend","ORT_CPU_SHARP${scene.resolution}_FP16").toString())
+            .put("resolution",scene.resolution)
+            .put("source",scene.source.name)
+            .put("backend",if(scene.source==GaussianSource.DEPTH_SMALL_CAMERA)"ORT_CPU_DEPTH_ANYTHING_V2_SMALL_FP32_RELATIVE"
+                else "ORT_CPU_SHARP${scene.resolution}_${if(BuildConfig.WEIGHT_ONLY_MODEL)"W8" else "FP16"}").toString())
         check(partial.renameTo(target)){"场景元数据保存失败"}
         File(dir,"queued").delete()
         File(dir,"reconstruction-error.txt").delete()
