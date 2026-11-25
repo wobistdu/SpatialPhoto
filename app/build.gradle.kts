@@ -55,8 +55,8 @@ android {
         manifestPlaceholders["applicationLabel"] = "@string/app_name"
         minSdk = 35
         targetSdk = 35
-        versionCode = 34
-        versionName = "0.34-w8"
+        versionCode = 35
+        versionName = "0.35-w8"
         buildConfigField("boolean", "DEPTH_SMALL_MODEL", "false")
         buildConfigField("boolean", "WEIGHT_ONLY_MODEL", "true")
         buildConfigField("long", "WEIGHT_ONLY_GRAPH_BYTES", "6742651L")

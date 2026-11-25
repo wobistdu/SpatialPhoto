@@ -44,7 +44,7 @@ internal fun photoDate(item:PhotoItem):String {
     val exportEnabled=!state.exporting && !state.exportNeedsPermission && !state.loading && state.photos.isNotEmpty() && state.deletingIds.isEmpty()
     val captureEnabled=!state.cameraRequested && !state.cameraClosing && !state.cameraNeedsPermission && !state.savingPhoto && !state.loading && state.deletingIds.isEmpty()
     TitleBar(modifier=Modifier.fillMaxWidth(),titleAlignment=TitleAlignment.Center,
-        title={Text(if(com.example.spatialphoto.BuildConfig.DEPTH_SMALL_MODEL)"浮光 · 轻量实验" else stringResource(R.string.app_name))},
+        title={Text(stringResource(R.string.app_name))},
         leadingActions={Button(onClick=onHelp){Text("帮助")}},
         trailingActions={Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
             ContrastHover(enabled=exportEnabled) { hoverTarget ->
@@ -56,11 +56,11 @@ internal fun photoDate(item:PhotoItem):String {
             ContrastHover(enabled=captureEnabled) { hoverTarget ->
             Button(onClick={onEvent(CaptureEvent.OpenCamera)},modifier=hoverTarget,enabled=captureEnabled){
             Icon(PicoIcons.Outlined.Camera3d,contentDescription=null,modifier=Modifier.size(24.dp))
-            Spacer(Modifier.width(8.dp));Text(if(state.cameraRequested)"准备取景…" else "拍照")
+            Spacer(Modifier.width(8.dp));Text("拍照")
         }}}})
     if(state.exportMessage.isNotBlank())Text(state.exportMessage,modifier=Modifier.padding(horizontal=32.dp,vertical=8.dp),style=PicoTheme.typography.bodySmall,color=PicoTheme.colorScheme.labelSecondary)
     Row(Modifier.fillMaxWidth().padding(start=32.dp,end=32.dp,bottom=20.dp),verticalAlignment=Alignment.CenterVertically) {
-        Text(if(state.photos.isEmpty())"把眼前，留在身边" else if(state.photos.any{it.builtInSample})"照片与内置示例" else "最近拍摄",style=PicoTheme.typography.titleMedium,color=PicoTheme.colorScheme.labelPrimary,modifier=Modifier.weight(1f))
+        Text(if(state.photos.isEmpty())"相册" else if(state.photos.any{it.builtInSample})"照片与内置示例" else "最近拍摄",style=PicoTheme.typography.titleMedium,color=PicoTheme.colorScheme.labelPrimary,modifier=Modifier.weight(1f))
         val tasks=listOfNotNull(
             state.processingCount.takeIf{it>0}?.let{"$it 张处理中"},
             state.waitingCount.takeIf{it>0}?.let{"$it 张排队"},

@@ -47,7 +47,7 @@ class CaptureViewModel(private val generate:SceneGenerator,
         }
         is CaptureEvent.CameraPermissionResult -> {
             _state.update{it.copy(cameraNeedsPermission=false,cameraPermissionDenied=!e.granted,
-                message=if(e.granted)"" else "尚未获得拍摄权限。可重新点「拍照」，或前往系统设置 → 应用 → 权限管理，为浮光开启相机和空间数据权限。")}
+                message=if(e.granted)"" else "尚未获得拍摄权限。可重新点「拍照」，或前往系统设置 → 应用 → 权限管理，为「空间拍照」开启相机和空间数据权限。")}
             if(e.granted)onEvent(CaptureEvent.OpenCamera)
         }
         CaptureEvent.CameraReady -> _state.update{it.copy(cameraStageAttached=true)}

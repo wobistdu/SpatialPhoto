@@ -1,4 +1,4 @@
-# 浮光 · 空间照片
+# 空间拍照
 
 PICO 头显上的单图空间重建研究应用。在 Fullspace 取景拍照，在普通窗口查看原图或小角度移动头部观察空间照片。后台逐张重建，可继续拍摄、浏览及导出原图与 PLY。
 
@@ -20,7 +20,7 @@ Apple Machine Learning Research Model is licensed under the Apple Machine Learni
 ./gradlew :app:testDebugUnitTest :app:assembleDebug
 ```
 
-默认构建 VibeLab 应用 com.example.spatialphoto，版本 0.34-w8（34）。同一套源码可用 -PlocalW8=true 构建 com.example.spatialphoto.w8，对应已验收的本地相册。两个包使用独立的私有存储。
+默认构建 VibeLab 应用 com.example.spatialphoto，版本 0.35-w8（35）。同一套源码可用 -PlocalW8=true 构建 com.example.spatialphoto.w8，对应已验收的本地相册。两个包使用独立的私有存储。
 
 ## 模型与资产
 

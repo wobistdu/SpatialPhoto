@@ -18,7 +18,7 @@ import com.example.spatialphoto.BuildConfig
 @Composable internal fun PhotoHelp(firstUse:Boolean,onClose:()->Unit,onCapture:()->Unit) {
     val lightweight=BuildConfig.DEPTH_SMALL_MODEL
     Column(Modifier.fillMaxSize()) {
-        TitleBar(titleAlignment=TitleAlignment.Center,title={Text(if(firstUse)"遇见浮光" else "使用帮助")},
+        TitleBar(titleAlignment=TitleAlignment.Center,title={Text(if(firstUse)"空间拍照" else "使用帮助")},
             leadingActions={
                 IconButton(onClick=onClose,modifier=Modifier.size(48.dp),size=IconButtonDefaults.iconButtonSize(48.dp)) {
                     Icon(PicoIcons.Outlined.ArrowLeft,"返回相册",Modifier.size(24.dp))
@@ -32,10 +32,10 @@ import com.example.spatialphoto.BuildConfig
                     Image(painterResource(R.mipmap.ic_spatial_launcher),null,Modifier.size(80.dp))
                     Text("拍下一张照片，换个角度重温",style=PicoTheme.typography.titleLarge,color=PicoTheme.colorScheme.labelPrimary)
                 }
-                HelpItem("拍一个有前后层次的场景","光线充足的静物最适合。对准场景，保持头部稳定，再按快门。")
-                HelpItem(if(lightweight)"通常十几秒，照片拥有浅景深" else "约一分钟，照片拥有深度",
-                    "等待时可以继续拍照或浏览原图。第一次使用需要额外准备本机模型。")
-                HelpItem("轻轻侧头，重新看见",if(lightweight)"点击完成的照片进入 3D，小幅左右移动头部。深度为 AI 估计，边缘背景会拉伸，不代表真实尺度。"
+                HelpItem("先选一个有前景的场景","让桌上的花和远处的窗户一起入镜。对准取景框，稳住头部，再按快门。")
+                HelpItem(if(lightweight)"通常十几秒，照片拥有浅景深" else "约一分钟后可看 3D",
+                    "按下快门就能继续拍，照片会逐张处理。第一次需要准备模型，会多等一会儿。")
+                HelpItem("打开照片，轻轻侧头",if(lightweight)"点击完成的照片进入 3D，小幅左右移动头部。深度为 AI 估计，边缘背景会拉伸，不代表真实尺度。"
                     else "点击完成的照片进入 3D，小幅左右移动头部。AI 推测的遮挡区域可能变形。")
                 Text("照片只在本机处理。使用帮助里可以查看导出和保管方法。",style=PicoTheme.typography.bodyMedium,color=PicoTheme.colorScheme.labelSecondary)
             } else {
@@ -56,7 +56,7 @@ import com.example.spatialphoto.BuildConfig
         }
         Row(Modifier.fillMaxWidth().padding(32.dp),horizontalArrangement=Arrangement.spacedBy(16.dp)) {
             Button(onClick=onClose,modifier=Modifier.weight(1f)){Text("进入相册")}
-            Button(onClick=onCapture,modifier=Modifier.weight(1f)){Text("去拍一张")}
+            Button(onClick=onCapture,modifier=Modifier.weight(1f)){Text("开始拍摄")}
         }
     }
 }

@@ -126,8 +126,8 @@ object CaptureDiagnostics {
                 Column(horizontalAlignment=androidx.compose.ui.Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(16.dp)) {
                     Icon(PicoIcons.Outlined.Camera3d,null,Modifier.size(48.dp),tint=PicoTheme.colorScheme.labelSecondary)
                     Text("拍下第一张空间照片",style=PicoTheme.typography.titleMedium)
-                    Text("记录眼前的场景，稍后换个角度重温",style=PicoTheme.typography.bodyMedium,color=PicoTheme.colorScheme.labelSecondary)
-                    Button(onClick={vm.onEvent(CaptureEvent.OpenCamera)},enabled=!state.savingPhoto && !state.cameraRequested && !state.cameraNeedsPermission && !state.cameraClosing){Text(if(state.cameraRequested)"准备取景…" else "开始拍摄")}
+                    Text("让近处的物体和远处的背景一起入镜",style=PicoTheme.typography.bodyMedium,color=PicoTheme.colorScheme.labelSecondary)
+                    Button(onClick={vm.onEvent(CaptureEvent.OpenCamera)},enabled=!state.savingPhoto && !state.cameraRequested && !state.cameraNeedsPermission && !state.cameraClosing){Text("开始拍摄")}
                 }
             } else {
                 val queued=state.photos.filter{it.queued}.sortedBy{it.queuedAt}.map{it.id}
